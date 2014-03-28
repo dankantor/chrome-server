@@ -1,0 +1,19 @@
+{
+  "name": "Chrome Server",
+  "description": "Socket server in Chrome",
+  "version": "0.1",
+  "app": {
+    "background": {
+      "scripts": ["background.js"]
+    }
+  },
+  "icons": {
+    "16": "images/icon-16.png",
+    "128": "images/icon-128.png" 
+  },
+   "sockets": {
+    "tcpServer": {
+        "listen": "0.0.0.0:9800"
+    } 
+  }
+}

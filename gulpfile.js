@@ -68,6 +68,16 @@ gulp.task('fontcopy', function () {
     
 });
 
+// copy chrome files
+gulp.task('chromecopy', function () {
+    gulp.src(
+        './chrome/**/', 
+        {base: './chrome'}
+    )
+    .pipe(gulp.dest('./build')); 
+    
+});
+
 // deploy to S3 bucket
 gulp.task('deploy', function () {
     var aws = JSON.parse(fs.readFileSync('./aws.json'));
@@ -86,7 +96,8 @@ gulp.task('build',
         'less',
         'imagemin',
         'htmlmin',
-        'fontcopy'
+        'fontcopy',
+        'chromecopy'
     ]
 );
 
@@ -100,6 +111,7 @@ gulp.task('watch', function () {
     gulp.watch('src/images/**', ['imagemin']);
     gulp.watch('src/*.html', ['htmlmin']);
     gulp.watch('src/fonts/**', ['fontcopy']);
+    gulp.watch('chrome/**', ['chromecopy']);
 });
 
 
