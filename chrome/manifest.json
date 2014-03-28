@@ -15,5 +15,10 @@
     "tcpServer": {
         "listen": "0.0.0.0:9800"
     } 
-  }
+  },
+  "permissions": [
+    {
+        "mediaGalleries": ["read", "allAutoDetected"] 
+    }
+  ]
 }
