@@ -3,20 +3,26 @@ window.Backbone = require('backbone');
 window.Backbone.$ = window.$;
 window._ = require('./../../node_modules/backbone/node_modules/underscore/underscore.js');
 
+
+var itunesParser = require('itunes-parser'),
+    parseUrl = require('url');
+
 function Main(){
+    this.ip = '108.182.90.118';
+    this.port = 9800;
     this.genres = [];
     this.artists = [];
     this.albums = [];
     this.songs = [];
     this.errorCount = 0;
-    //chrome.sockets.tcpServer.create(this.onSocketCreate.bind(this));
+    chrome.sockets.tcpServer.create(this.onSocketCreate.bind(this));
     this.getMediaFileSystems();
 };
 
 Main.prototype.onSocketCreate = function(createInfo){
     console.log('create', createInfo);
     this.socketId = createInfo.socketId;
-    chrome.sockets.tcpServer.listen(createInfo.socketId, '0.0.0.0', 9800, null, this.onSocketListen.bind(this));
+    chrome.sockets.tcpServer.listen(createInfo.socketId, '0.0.0.0', this.port, null, this.onSocketListen.bind(this));
 }
 
 Main.prototype.onSocketListen = function(result){
@@ -37,21 +43,140 @@ Main.prototype.onSocketAcceptError = function(info){
 
 Main.prototype.onSocketReceive = function(info){
     console.log('onSocketReceive', info);  
-    var str = this.arrayBufferToString(info.data);
-    console.log('got str:', str);
-    chrome.sockets.tcp.send(info.socketId, info.data, function(sendInfo){
-        console.log('sendInfo', sendInfo);
-        chrome.sockets.tcp.close(info.socketId, function(){
-            console.log('close:', info.socketId);
+    var data = this.arrayBufferToString(info.data);
+    if(data.indexOf("GET ") == 0) {
+        var uriEnd =  data.indexOf(" ", 4);
+        if(uriEnd < 0) {
+            return; 
+        }
+        var uri = data.substring(4, uriEnd);
+        var obj = parseUrl.parse(uri, true);
+        //console.log('uri', uri, obj);
+        switch(obj.pathname){
+            case '/getSong':
+                this.getFile(obj.query.file).then(
+                    function(file){
+                        console.log('send file:', obj.query.file);
+                        this.sendFile(info.socketId, file, false);
+                    }.bind(this),
+                    function(e){
+                        console.log('no file', e);
+                        this.writeErrorResponse(info.socketId, e.code, false);
+                    }.bind(this)
+                );
+            break;
+            case '/getLibrary':
+                this.sendJSON(info.socketId, this.songs, false);
+            break;
+            default:
+                this.writeErrorResponse(info.socketId, 404, false);
+            break;
+        }
+    }
+    else{
+        this.writeErrorResponse(info.socketId, 406, false);
+    }
+}
+
+Main.prototype.send200 = function(socketId){
+    chrome.sockets.tcp.send(socketId, '200', function(sendInfo){
+        chrome.sockets.tcp.close(socketId, function(){
+            console.log('close:', socketId);
         })
     })
 }
 
+Main.prototype.sendError = function(socketId){
+    chrome.sockets.tcp.send(socketId, 'error', function(sendInfo){
+        chrome.sockets.tcp.close(socketId, function(){
+            console.log('close:', socketId);
+        })
+    })
+}
+
+Main.prototype.sendFile = function(socketId, file, keepAlive) {
+    var contentType = (file.type === "") ? "text/plain" : file.type;
+    var contentLength = file.size;
+    var header = this.stringToUint8Array("HTTP/1.0 200 OK\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
+    var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
+    var view = new Uint8Array(outputBuffer)
+    view.set(header, 0);
+    var fileReader = new FileReader();
+    fileReader.onload = function(e) {
+        view.set(new Uint8Array(e.target.result), header.byteLength);
+        chrome.sockets.tcp.send(socketId, outputBuffer, function(sendInfo){
+            console.log("sendInfo", sendInfo);
+            if (keepAlive) {
+                //readFromSocket(socketId);
+            } 
+            else {
+                //socket.destroy(socketId);
+                //socket.accept(socketInfo.socketId, onAccept);
+                chrome.sockets.tcp.close(socketId, function(){
+                    console.log('close:', socketId);
+                });
+            }
+        });
+    }
+    fileReader.readAsArrayBuffer(file);
+};
+
+Main.prototype.sendJSON = function(socketId, obj, keepAlive) {
+    var sendObj = {
+        'status': 200,
+        'response': obj
+    }
+    var json = JSON.stringify(sendObj);
+    var file = new Blob([json], {type: 'application/json'});
+    var header = this.stringToUint8Array("HTTP/1.0 200 OK\nAccess-Control-Allow-Origin:*\nContent-length: " + file.size + "\nContent-type:" + file.type + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
+    var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
+    var view = new Uint8Array(outputBuffer);
+    view.set(header, 0);
+    var fileReader = new FileReader();
+    fileReader.onload = function(e) {
+        view.set(new Uint8Array(e.target.result), header.byteLength);
+        chrome.sockets.tcp.send(socketId, outputBuffer, function(sendInfo){
+            console.log("sendInfo", sendInfo);
+            if (keepAlive) {
+                //readFromSocket(socketId);
+            } 
+            else {
+                //socket.destroy(socketId);
+                //socket.accept(socketInfo.socketId, onAccept);
+                chrome.sockets.tcp.close(socketId, function(){
+                    console.log('close:', socketId);
+                });
+            }
+        });
+    }
+    fileReader.readAsArrayBuffer(file);
+};
+
+Main.prototype.writeErrorResponse = function(socketId, errorCode, keepAlive) {
+    var file = { size: 0 };
+    var contentType = "text/plain"; //(file.type === "") ? "text/plain" : file.type;
+    var contentLength = file.size;
+    var header = this.stringToUint8Array("HTTP/1.0 " + errorCode + " Not Found\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
+    var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
+    var view = new Uint8Array(outputBuffer)
+    view.set(header, 0);
+    chrome.sockets.tcp.send(socketId, outputBuffer, function(sendInfo){
+        console.log("sendInfo", sendInfo);
+        if (keepAlive) {
+            //readFromSocket(socketId);
+        } else {
+            //socket.destroy(socketId);
+            //socket.accept(socketInfo.socketId, onAccept);
+            chrome.sockets.tcp.close(socketId, function(){
+                console.log('close:', socketId);
+            });
+        }
+    });
+};
 
 Main.prototype.onUnPause = function(){
-    console.log('onUnPause');
     chrome.sockets.tcpServer.getInfo(this.socketId, function(info){
-        console.log('info', info);
+        //console.log('info', info);
     })
 }
 
@@ -64,6 +189,15 @@ Main.prototype.arrayBufferToString = function(buffer) {
     return str;
 };
 
+Main.prototype.stringToUint8Array = function(string) {
+    var buffer = new ArrayBuffer(string.length);
+    var view = new Uint8Array(buffer);
+    for(var i = 0; i < string.length; i++) {
+      view[i] = string.charCodeAt(i);
+    }
+    return view;
+};
+
 Main.prototype.getMediaFileSystems = function(){
     chrome.mediaGalleries.getMediaFileSystems(null, this.onMediaFileSystems.bind(this));
 }
@@ -72,7 +206,6 @@ Main.prototype.onMediaFileSystems = function(mediaFileSystems){
     mediaFileSystems.forEach(function(item, indx, arr) {
          var mData = chrome.mediaGalleries.getMediaFileSystemMetadata(item);
          if(mData.name === 'iTunes'){
-             //console.log('got it', mData);
              this.readDir(item);
          }
     }.bind(this));
@@ -83,7 +216,6 @@ Main.prototype.readDir = function(fs) {
     var readEntries = function() {
         dirReader.readEntries (function(results) {
             results.forEach(function(item, index){
-                //console.log(item);
                 if(item.name === "iTunes Music Library.xml"){
                     this.readFile(item);
                 }
@@ -96,6 +228,7 @@ Main.prototype.readDir = function(fs) {
     readEntries(); // Start reading dirs.
 }
 
+/*
 Main.prototype.readItunesDir = function(item) {
     var dirReader = item.createReader();
     var readEntries = function() {
@@ -109,7 +242,9 @@ Main.prototype.readItunesDir = function(item) {
     }.bind(this);
     readEntries(); // Start reading dirs.
 }
+*/
 
+/*
 Main.prototype.readMusicDirs = function(item) {
     var dirReader = item.createReader();
     var readEntries = function() {
@@ -119,7 +254,9 @@ Main.prototype.readMusicDirs = function(item) {
     }.bind(this);
     readEntries(); // Start reading dirs.
 }
+*/
 
+/*
 Main.prototype.readMusicFiles = function(item) {
     var dirReader = item.createReader();
     var readEntries = function() {
@@ -129,12 +266,13 @@ Main.prototype.readMusicFiles = function(item) {
     }.bind(this);
     readEntries(); // Start reading dirs.
 }
+*/
 
+/*
 Main.prototype.getMusicFiles = function(item) {
     var dirReader = item.createReader();
     var readEntries = function() {
         dirReader.readEntries (function(results) {
-            console.log(results);
             results[0].getMetadata(
                 function(m){
                     //console.log('metadata', m);
@@ -145,11 +283,11 @@ Main.prototype.getMusicFiles = function(item) {
                     results,
                     'fullPath'
                 );
-            console.log(fullPaths);
         }.bind(this), null);
     }.bind(this);
     readEntries(); // Start reading dirs.
 }
+*/
 
 Main.prototype.readFile = function(fileEntry){
     fileEntry.file(function(file) {
@@ -162,77 +300,87 @@ Main.prototype.readFile = function(fileEntry){
 }
 
 Main.prototype.parseXML = function(str){
-    var parser = new DOMParser();
-    xml = parser.parseFromString(str,"text/xml");
-    console.log(xml);
-    var root = xml.getElementsByTagName('plist')[0]; // get plist root
-    var dicts = root.getElementsByTagName('dict');
-    var tracksDict = dicts[1];
-    var trackDicts = tracksDict.getElementsByTagName('dict');
+    this.songs = itunesParser.parse(
+        str,
+        {
+            'Track ID': 'id',
+            'Artist': 'artist',
+            'Album': 'album',
+            'Genre': 'genre',
+            'Name': 'title',
+            'Location': 'url'
+        }
+    );
+    this.fixSongs(this.songs).then(
+        function(songs){
+            this.songs = songs;
+            //this.readItunesDir(this.itunesDir);
+        }.bind(this),
+        function(){
+            console.log('fixSongs error');
+        }.bind(this)
+    );
+}
+
+Main.prototype.fixSongs = function(){
+    var promise = $.Deferred();
+    var songs = [];
+    var getFileUrls = [];
     _.each(
-        trackDicts,
-        function(dict){
-            var keys = dict.getElementsByTagName('key');
-            var song = {};
+        this.songs,
+        function(song){
+            if(song.artist){
+                song.artist = song.artist.replace(/&amp;/g, "&");
+                var artist = song.artist;
+            }
+            if(song.album){
+                song.album = song.album.replace(/&amp;/g, "&");
+                var album = song.album;
+            }
+            if(!song.genre){
+                song.genre = 'Unknown';
+            }
+            var location = song.url;
+            var lastSlash = location.lastIndexOf('/');
+            var fileName = location.slice(lastSlash + 1);
+            fileName = fileName.replace(/%20/g," ");
+            fileName = fileName.replace(/:/g,"_");
+            fileName = fileName.replace(/\//g,"_");
+            fileName = fileName.replace(/&amp;/g, "&");
+            if(artist){
+                artist = artist.replace(/%20/g," ");
+                artist = artist.replace(/:/g,"_");
+                artist = artist.replace(/\//g,"_");
+            }
+            if(album){
+                album = album.replace(/%20/g," ");
+                album = album.replace(/:/g,"_");
+                album = album.replace(/\//g,"_");
+            }
+            song.url = '/iTunes Media/Music/' + artist + '/' + album + '/' + fileName;
+            getFileUrls.push(this.getFileUrl(song));
+        }.bind(this)
+    );
+    $.when.apply($, getFileUrls).then(
+        function(song){
             _.each(
-                keys,
-                function(key){
-                    var innerHTML = key.innerHTML;
-                    var nextSiblingInnerHTML = key.nextSibling.innerHTML;
-                    switch(innerHTML){ // set attributes on Song object
-                        case 'Track ID':
-                            song.id = nextSiblingInnerHTML;
-                        break;
-                        case 'Artist':
-                            song.artist = nextSiblingInnerHTML;
-                            song.artist = song.artist.replace(/&amp;/g, "&");
-                        break;
-                        case 'Album':
-                            song.album = nextSiblingInnerHTML;
-                            song.album = song.album.replace(/&amp;/g, "&");
-                        break;
-                        case 'Genre':
-                            song.genre = nextSiblingInnerHTML;
-                        break;
-                        case 'Name':
-                            song.title = nextSiblingInnerHTML;
-                        break;
-                        case 'Location':
-                            var location = nextSiblingInnerHTML;
-                            var lastSlash = location.lastIndexOf('/');
-                            var fileName = location.slice(lastSlash + 1);
-                            fileName = fileName.replace(/%20/g," ");
-                            fileName = fileName.replace(/:/g,"_");
-                            fileName = fileName.replace(/\//g,"_");
-                            fileName = fileName.replace(/&amp;/g, "&");
-                            var artist = song.artist;
-                            if(artist){
-                                artist = artist.replace(/%20/g," ");
-                                artist = artist.replace(/:/g,"_");
-                                artist = artist.replace(/\//g,"_");
-                            }
-                            var album = song.album;
-                            if(album){
-                                album = album.replace(/%20/g," ");
-                                album = album.replace(/:/g,"_");
-                                album = album.replace(/\//g,"_");
-                            }
-                            song.url = '/iTunes Media/Music/' + artist + '/' + album + '/' + fileName;
-                        break;
-                        default:
-                        break;
+                arguments,
+                function(song){
+                    if(song){
+                        songs.push(song);
                     }
                 }.bind(this)
             );
-            this.songs.push(song);
-        }.bind(this)
+            promise.resolve(songs);
+        }.bind(this),
+        function(e){
+            promise.resolve(songs);
+        }
     );
-    this.sortLists(this.songs);
-    console.log('songs:', this.songs.length, this.songs[80]);
-    this.readItunesDir(this.itunesDir);
-    //this.getFileUrl(this.songs[0].url);
+    return promise;
 }
 
+/*
 Main.prototype.sortLists = function(){
     this.genres = _.uniq(
         _.pluck(
@@ -253,7 +401,9 @@ Main.prototype.sortLists = function(){
         )
     ).sort(this.sortFunc);
 }
+*/
 
+/*
 Main.prototype.sortFunc = function(a, b){
     if(a.toLowerCase() > b.toLowerCase()){
         return 1;
@@ -262,9 +412,12 @@ Main.prototype.sortFunc = function(a, b){
         return -1;
     }
 }
+*/
 
-Main.prototype.getFileUrl = function(url){
-    this.itunesDir.filesystem.root.getFile(url, {create: false}, function(fileEntry) {
+Main.prototype.getFileUrl = function(song){
+    var promise = $.Deferred();
+    this.itunesDir.filesystem.root.getFile(song.url, {create: false}, function(fileEntry) {
+        promise.resolve(song);
         /*
 console.log(fileEntry);
         fileEntry.file(function(file) {
@@ -274,10 +427,27 @@ console.log(fileEntry);
 */
     }, function(e){
         this.errorCount++;
-        //console.log('getFileUrl error', e);
-        console.log('error', this.errorCount, url);
+        promise.resolve(null);
     }.bind(this));
+    return promise;
 }
+
+Main.prototype.getFile = function(url){
+    var promise = $.Deferred();
+    this.itunesDir.filesystem.root.getFile(url, {create: false}, function(fileEntry) {
+        fileEntry.file(function(file) {
+            promise.resolve(file);    
+        })
+    }, function(e){
+        promise.reject(
+            {
+                'code': 404
+            }
+        );
+    }.bind(this));
+    return promise;
+}
+
 
 
 

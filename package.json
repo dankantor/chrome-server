@@ -11,7 +11,8 @@
   "license": "MIT",
   "dependencies": {
     "jquery": "2.1.0",
-    "backbone": "1.1.0"
+    "backbone": "1.1.0",
+    "itunes-parser": "0.0.1"
   },
   "devDependencies": {
     "gulp": "~3.5.0",
