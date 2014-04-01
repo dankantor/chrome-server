@@ -68,6 +68,9 @@ Main.prototype.onSocketReceive = function(info){
             case '/getLibrary':
                 this.sendJSON(info.socketId, this.songs, false);
             break;
+            case '/ping':
+                this.sendJSON(info.socketId, {'ping': 'ok'}, false);
+            break;
             default:
                 this.writeErrorResponse(info.socketId, 404, false);
             break;
