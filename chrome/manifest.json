@@ -14,12 +14,14 @@
   },
    "sockets": {
     "tcpServer": {
-        "listen": "0.0.0.0:9800"
+        "listen": "0.0.0.0:*"
     } 
   },
   "permissions": [
     {
         "mediaGalleries": ["read", "allAutoDetected"] 
-    }
+    },
+    "storage",
+    "unlimitedStorage"
   ]
 }

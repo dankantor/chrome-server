@@ -6,25 +6,68 @@ function Server(opts){
     console.log('server');
     this.library = opts.library;
     this.port = 9800;
-    chrome.sockets.tcpServer.create(this.onSocketCreate.bind(this));
+    chrome.sockets.tcpServer.getSockets(this.onGetSockets.bind(this));
+    //chrome.runtime.onStartup.addListener(this.onStartup.bind(this));
+    //chrome.app.runtime.onLaunched.addListener(this.onStartup.bind(this));
 };
 
-Server.prototype.onSocketCreate = function(createInfo){
-    console.log('create', createInfo);
-    this.socketId = createInfo.socketId;
-    chrome.sockets.tcpServer.listen(createInfo.socketId, '0.0.0.0', this.port, null, this.onSocketListen.bind(this));
+Server.prototype.onStartup = function(){
+    console.log('onStartup');
+    chrome.sockets.tcpServer.getSockets(this.onGetSockets.bind(this));
+};
+
+Server.prototype.onGetSockets = function(socketInfos){
+    console.log('socketInfos', socketInfos);
+    if(socketInfos.length <= 0){
+        this.createSocket();
+    }
+    else{
+        this.listen(socketInfos[0].socketId, 'exists');
+    }
 }
 
-Server.prototype.onSocketListen = function(result){
-    console.log('onSocketListen', result);
+Server.prototype.createSocket = function(){
+    chrome.sockets.tcpServer.create(
+        {
+            'persistent': true,
+            'name': 'ex'
+        },
+        this.onSocketCreate.bind(this)
+    );
+}
+
+Server.prototype.onSocketCreate = function(createInfo){
+    this.listen(createInfo.socketId, 'create');
+}
+
+Server.prototype.listen = function(socketId, type){
+    chrome.sockets.tcpServer.listen(
+        socketId,
+        '0.0.0.0',
+        this.port,
+        null,
+        this.onSocketListen.bind(this, type)
+    );
+}
+
+Server.prototype.onSocketListen = function(type, result){
+    chrome.storage.local.set(
+        {
+            'listen': 
+                {
+                    'type': type,
+                    'result': result
+                }
+        }
+    );
     chrome.sockets.tcpServer.onAccept.addListener(this.onSocketAccept.bind(this));
     chrome.sockets.tcpServer.onAcceptError.addListener(this.onSocketAcceptError.bind(this));
     chrome.sockets.tcp.onReceive.addListener(this.onSocketReceive.bind(this));
 }
 
 Server.prototype.onSocketAccept = function(info){
-    console.log('onSocketAccept', info); 
-    chrome.sockets.tcp.setPaused(info.clientSocketId, false, this.onUnPause.bind(this)) 
+    //console.log('onSocketAccept', info); 
+    chrome.sockets.tcp.setPaused(info.clientSocketId, false, this.onUnPause.bind(this)); 
 }
 
 Server.prototype.onSocketAcceptError = function(info){
@@ -32,7 +75,8 @@ Server.prototype.onSocketAcceptError = function(info){
 }
 
 Server.prototype.onSocketReceive = function(info){
-    console.log('onSocketReceive', info);  
+    console.time('file');
+    //console.log('onSocketReceive', info);  
     var data = this.arrayBufferToString(info.data);
     if(data.indexOf("GET ") == 0) {
         var uriEnd =  data.indexOf(" ", 4);
@@ -45,11 +89,10 @@ Server.prototype.onSocketReceive = function(info){
             case '/getSong':
                 this.library.getFile(obj.query.file).then(
                     function(file){
-                        console.log('send file:', obj.query.file);
                         this.sendFile(info.socketId, file, false);
+                        console.timeEnd('file');
                     }.bind(this),
                     function(e){
-                        console.log('no file', e);
                         this.writeErrorResponse(info.socketId, e.code, false);
                     }.bind(this)
                 );
@@ -63,6 +106,20 @@ Server.prototype.onSocketReceive = function(info){
             case '/favicon.ico':
                 this.writeErrorResponse(info.socketId, 404, false);
             break;
+            case '/getLib':
+                this.library.getLibrary().then(
+                    function(fileEntry){
+                        fileEntry.file(
+                            function(file) {
+                                this.sendFile(info.socketId, file, false);    
+                            }.bind(this)
+                        );
+                    }.bind(this),
+                    function(e){
+                        this.writeErrorResponse(info.socketId, e.code, false);
+                    }.bind(this)
+                );
+            break;
             default:
                 this.writeErrorResponse(info.socketId, 404, false);
             break;
@@ -71,6 +128,15 @@ Server.prototype.onSocketReceive = function(info){
     else{
         this.writeErrorResponse(info.socketId, 406, false);
     }
+}
+
+Server.prototype.getFile = function(){
+    this.library.getItunesDir().then(
+        function(dir){
+            console.timeEnd('lib');
+            console.log('got dir', dir);
+        }
+    );
 }
 
 Server.prototype.send200 = function(socketId){
@@ -170,9 +236,7 @@ Server.prototype.writeErrorResponse = function(socketId, errorCode, keepAlive) {
 };
 
 Server.prototype.onUnPause = function(){
-    chrome.sockets.tcpServer.getInfo(this.socketId, function(info){
-        //console.log('info', info);
-    })
+    
 }
 
 Server.prototype.arrayBufferToString = function(buffer) {
