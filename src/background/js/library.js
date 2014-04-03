@@ -3,7 +3,6 @@
 var itunesParser = require('itunes-parser');
 
 function Library(){
-    console.log('Library');
     this.itunesFS = null;
 };
 

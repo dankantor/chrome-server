@@ -9,17 +9,16 @@ function Server(opts){
 };
 
 Server.prototype.start = function(){
-    console.log('Server start');
     chrome.sockets.tcpServer.getSockets(this.onGetSockets.bind(this));
 }
 
 Server.prototype.onGetSockets = function(socketInfos){
-    console.log('socketInfos', socketInfos);
+    var now = new Date().getTime();
     if(socketInfos.length <= 0){
         this.createSocket();
     }
     else{
-        this.listen(socketInfos[0].socketId, 'exists');
+        this.addAcceptListeners();
     }
 }
 
@@ -48,30 +47,25 @@ Server.prototype.listen = function(socketId, type){
 }
 
 Server.prototype.onSocketListen = function(type, result){
-    chrome.storage.local.set(
-        {
-            'listen': 
-                {
-                    'type': type,
-                    'result': result
-                }
-        }
-    );
+    this.addAcceptListeners();
+}
+
+Server.prototype.addAcceptListeners = function(){
     chrome.sockets.tcpServer.onAccept.addListener(this.onSocketAccept.bind(this));
     chrome.sockets.tcpServer.onAcceptError.addListener(this.onSocketAcceptError.bind(this));
     chrome.sockets.tcp.onReceive.addListener(this.onSocketReceive.bind(this));
 }
 
 Server.prototype.onSocketAccept = function(info){
-    //console.log('onSocketAccept', info); 
     chrome.sockets.tcp.setPaused(info.clientSocketId, false, this.onUnPause.bind(this)); 
 }
 
 Server.prototype.onSocketAcceptError = function(info){
-    console.log('onSocketAcceptError', info);  
+    //console.log('onSocketAcceptError', info);  
 }
 
 Server.prototype.onSocketReceive = function(info){
+    //console.log('onSocketReceive', info);
     var data = this.arrayBufferToString(info.data);
     if(data.indexOf("GET ") == 0) {
         var uriEnd =  data.indexOf(" ", 4);
@@ -230,7 +224,7 @@ Server.prototype.writeErrorResponse = function(socketId, errorCode, keepAlive) {
 };
 
 Server.prototype.onUnPause = function(){
-    
+
 }
 
 Server.prototype.arrayBufferToString = function(buffer) {
