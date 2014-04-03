@@ -169,7 +169,8 @@ Library.prototype.parseXMLFile = function(xmlStr){
             'Album': 'album',
             'Genre': 'genre',
             'Name': 'title',
-            'Location': 'url'
+            'Location': 'url',
+            'Kind': 'kind'
         }
     );
 }
@@ -184,36 +185,41 @@ Library.prototype.fixSongs = function(list){
     _.each(
         list,
         function(song){
-            if(song.artist){
-                song.artist = song.artist.replace(/&amp;/g, "&");
-                var artist = song.artist;
+            if(song.kind.indexOf('audio') !== -1){
+                delete song.kind;
+                if(song.artist){
+                    song.artist = song.artist.replace(/&amp;/g, "&");
+                    var artist = song.artist;
+                }
+                if(song.album){
+                    song.album = song.album.replace(/&amp;/g, "&");
+                    var album = song.album;
+                }
+                if(!song.genre){
+                    song.genre = 'Unknown';
+                }
+                if(song.url){
+                    var location = song.url;
+                    var lastSlash = location.lastIndexOf('/');
+                    var fileName = location.slice(lastSlash + 1);
+                    fileName = fileName.replace(/%20/g," ");
+                    fileName = fileName.replace(/:/g,"_");
+                    fileName = fileName.replace(/\//g,"_");
+                    fileName = fileName.replace(/&amp;/g, "&");
+                    if(artist){
+                        artist = artist.replace(/%20/g," ");
+                        artist = artist.replace(/:/g,"_");
+                        artist = artist.replace(/\//g,"_");
+                    }
+                    if(album){
+                        album = album.replace(/%20/g," ");
+                        album = album.replace(/:/g,"_");
+                        album = album.replace(/\//g,"_");
+                    }
+                    song.url = '/iTunes Media/Music/' + artist + '/' + album + '/' + fileName;
+                    checkFileUrls.push(this.checkFileUrl(song));
+                }
             }
-            if(song.album){
-                song.album = song.album.replace(/&amp;/g, "&");
-                var album = song.album;
-            }
-            if(!song.genre){
-                song.genre = 'Unknown';
-            }
-            var location = song.url;
-            var lastSlash = location.lastIndexOf('/');
-            var fileName = location.slice(lastSlash + 1);
-            fileName = fileName.replace(/%20/g," ");
-            fileName = fileName.replace(/:/g,"_");
-            fileName = fileName.replace(/\//g,"_");
-            fileName = fileName.replace(/&amp;/g, "&");
-            if(artist){
-                artist = artist.replace(/%20/g," ");
-                artist = artist.replace(/:/g,"_");
-                artist = artist.replace(/\//g,"_");
-            }
-            if(album){
-                album = album.replace(/%20/g," ");
-                album = album.replace(/:/g,"_");
-                album = album.replace(/\//g,"_");
-            }
-            song.url = '/iTunes Media/Music/' + artist + '/' + album + '/' + fileName;
-            checkFileUrls.push(this.checkFileUrl(song));
         }.bind(this)
     );
     $.when.apply($, checkFileUrls).then(
@@ -278,7 +284,7 @@ Library.prototype.getFileSystem = function(){
 Library.prototype.getSongsFile = function(fs, create, exclusive){
     var deferred = new $.Deferred();
     fs.root.getFile(
-        'songs.txt',
+        'songs.json',
         {
             'create': create, 
             'exclusive': exclusive
@@ -306,7 +312,7 @@ Library.prototype.writeSongsFile = function(fileEntry, songList){
                 deferred.reject(e);
             };
             var json = JSON.stringify(songList);
-            var blob = new Blob([json], {type: 'text/plain'});
+            var blob = new Blob([json], {type: 'text/json'});
             fileWriter.write(blob);
         },
         function(e){
