@@ -33,3 +33,6 @@ main.startServer()
 chrome.runtime.onInstalled.addListener(function(){
     main.parseLibrary();
 });
+
+
+// on restart start server

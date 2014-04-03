@@ -130,7 +130,7 @@ Server.prototype.getLibrary = function(){
 Server.prototype.send200 = function(socketId){
     chrome.sockets.tcp.send(socketId, '200', function(sendInfo){
         chrome.sockets.tcp.close(socketId, function(){
-            console.log('close:', socketId);
+            //console.log('close:', socketId);
         })
     })
 }
@@ -138,7 +138,7 @@ Server.prototype.send200 = function(socketId){
 Server.prototype.sendError = function(socketId){
     chrome.sockets.tcp.send(socketId, 'error', function(sendInfo){
         chrome.sockets.tcp.close(socketId, function(){
-            console.log('close:', socketId);
+            //console.log('close:', socketId);
         })
     })
 }
@@ -154,7 +154,7 @@ Server.prototype.sendFile = function(socketId, file, keepAlive) {
     fileReader.onload = function(e) {
         view.set(new Uint8Array(e.target.result), header.byteLength);
         chrome.sockets.tcp.send(socketId, outputBuffer, function(sendInfo){
-            console.log("sendInfo", sendInfo);
+            //console.log("sendInfo", sendInfo);
             if (keepAlive) {
                 //readFromSocket(socketId);
             } 
@@ -162,7 +162,7 @@ Server.prototype.sendFile = function(socketId, file, keepAlive) {
                 //socket.destroy(socketId);
                 //socket.accept(socketInfo.socketId, onAccept);
                 chrome.sockets.tcp.close(socketId, function(){
-                    console.log('close:', socketId);
+                    //console.log('close:', socketId);
                 });
             }
         });
@@ -185,7 +185,7 @@ Server.prototype.sendJSON = function(socketId, obj, keepAlive) {
     fileReader.onload = function(e) {
         view.set(new Uint8Array(e.target.result), header.byteLength);
         chrome.sockets.tcp.send(socketId, outputBuffer, function(sendInfo){
-            console.log("sendInfo", sendInfo);
+            //console.log("sendInfo", sendInfo);
             if (keepAlive) {
                 //readFromSocket(socketId);
             } 
@@ -193,7 +193,7 @@ Server.prototype.sendJSON = function(socketId, obj, keepAlive) {
                 //socket.destroy(socketId);
                 //socket.accept(socketInfo.socketId, onAccept);
                 chrome.sockets.tcp.close(socketId, function(){
-                    console.log('close:', socketId);
+                    //console.log('close:', socketId);
                 });
             }
         });
@@ -210,14 +210,14 @@ Server.prototype.writeErrorResponse = function(socketId, errorCode, keepAlive) {
     var view = new Uint8Array(outputBuffer)
     view.set(header, 0);
     chrome.sockets.tcp.send(socketId, outputBuffer, function(sendInfo){
-        console.log("sendInfo", sendInfo);
+        //console.log("sendInfo", sendInfo);
         if (keepAlive) {
             //readFromSocket(socketId);
         } else {
             //socket.destroy(socketId);
             //socket.accept(socketInfo.socketId, onAccept);
             chrome.sockets.tcp.close(socketId, function(){
-                console.log('close:', socketId);
+                //console.log('close:', socketId);
             });
         }
     });
