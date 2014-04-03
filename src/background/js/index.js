@@ -6,14 +6,11 @@ var Server = require('./server.js'),
     Library = require('./library.js');
 
 function Main(){
-    console.log('background main');
+    console.log('Main');
     this.library = new Library();
     this.library.parse();
-    this.server = new Server(
-        {
-            'library': this.library
-        }
-    );
+    this.server = new Server();
+    this.server.start();
 };
 
 
@@ -21,10 +18,5 @@ chrome.runtime.onInstalled.addListener(function(){
     window.main = new Main();
 });
 
-/*
-chrome.app.runtime.onLaunched.addListener(
-    function(){
-        console.log('onLaunched');
-    }
-);
-*/
+//chrome.runtime.onStartup.addListener(this.onStartup.bind(this));
+//chrome.app.runtime.onLaunched.addListener(this.onStartup.bind(this));

@@ -1,20 +1,17 @@
 (function(){
 
-var parseUrl = require('url');
+var parseUrl = require('url'),
+    Library = require('./library.js');
 
 function Server(opts){
-    console.log('server');
-    this.library = opts.library;
     this.port = 9800;
-    chrome.sockets.tcpServer.getSockets(this.onGetSockets.bind(this));
-    //chrome.runtime.onStartup.addListener(this.onStartup.bind(this));
-    //chrome.app.runtime.onLaunched.addListener(this.onStartup.bind(this));
+    this.library = null;
 };
 
-Server.prototype.onStartup = function(){
-    console.log('onStartup');
+Server.prototype.start = function(){
+    console.log('Server start');
     chrome.sockets.tcpServer.getSockets(this.onGetSockets.bind(this));
-};
+}
 
 Server.prototype.onGetSockets = function(socketInfos){
     console.log('socketInfos', socketInfos);
@@ -75,8 +72,6 @@ Server.prototype.onSocketAcceptError = function(info){
 }
 
 Server.prototype.onSocketReceive = function(info){
-    console.time('file');
-    //console.log('onSocketReceive', info);  
     var data = this.arrayBufferToString(info.data);
     if(data.indexOf("GET ") == 0) {
         var uriEnd =  data.indexOf(" ", 4);
@@ -87,18 +82,15 @@ Server.prototype.onSocketReceive = function(info){
         var obj = parseUrl.parse(uri, true);
         switch(obj.pathname){
             case '/getSong':
-                this.library.getFile(obj.query.file).then(
+                var library = this.getLibrary();
+                library.getFile(obj.query.file).then(
                     function(file){
                         this.sendFile(info.socketId, file, false);
-                        console.timeEnd('file');
                     }.bind(this),
                     function(e){
                         this.writeErrorResponse(info.socketId, e.code, false);
                     }.bind(this)
                 );
-            break;
-            case '/getLibrary':
-                this.sendJSON(info.socketId, this.library.songs, false);
             break;
             case '/ping':
                 this.sendJSON(info.socketId, {'ping': 'ok'}, false);
@@ -106,8 +98,9 @@ Server.prototype.onSocketReceive = function(info){
             case '/favicon.ico':
                 this.writeErrorResponse(info.socketId, 404, false);
             break;
-            case '/getLib':
-                this.library.getLibrary().then(
+            case '/getLibrary':
+                var library = this.getLibrary();
+                library.getSongs().then(
                     function(fileEntry){
                         fileEntry.file(
                             function(file) {
@@ -130,13 +123,14 @@ Server.prototype.onSocketReceive = function(info){
     }
 }
 
-Server.prototype.getFile = function(){
-    this.library.getItunesDir().then(
-        function(dir){
-            console.timeEnd('lib');
-            console.log('got dir', dir);
-        }
-    );
+Server.prototype.getLibrary = function(){
+    if(this.library !== null){
+        return this.library;
+    }
+    else{
+        this.library = new Library();
+        return this.library;
+    }
 }
 
 Server.prototype.send200 = function(socketId){

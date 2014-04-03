@@ -3,59 +3,24 @@
 var itunesParser = require('itunes-parser');
 
 function Library(){
-    console.log('new Library');
-    this.itunesDir = null;
-    this.songs = [];
-    this.errorCount = 0;
+    console.log('Library');
+    this.itunesFS = null;
 };
 
-Library.prototype.getItunesDir = function(){
-    var promise = $.Deferred();
-    if(this.itunesDir !== null){
-        console.log('had it');
-        promise.resolve(this.itunesDir);
-    }
-    else{
-        chrome.mediaGalleries.getMediaFileSystems(
-            null,
-            function(mediaFileSystems){
-                mediaFileSystems.forEach(
-                    function(item, indx, arr) {
-                        var mData = chrome.mediaGalleries.getMediaFileSystemMetadata(item);
-                        if(mData.name === 'iTunes'){
-                            this.readDir(item).then(
-                                function(dir){
-                                    this.itunesDir = dir;
-                                    promise.resolve(dir);
-                                },
-                                function(e){
-                                    promise.reject();
-                                }
-                            );               
-                        }
-                    }.bind(this)
-                );
-            }.bind(this)
-        );
-    }
-    return promise;
-}
 
+// parse the itunes xml file 
+// into an object
+// save object as json in filesystem
 Library.prototype.parse = function(){
     var songList = [];
     this.getMediaFileSystems().then(
         function(mediaFileSystems){
-            var iTunesMFS;
-            mediaFileSystems.forEach(
-                function(mediaFileSystem){
-                    var data = chrome.mediaGalleries.getMediaFileSystemMetadata(mediaFileSystem);
-                    if(data.name === 'iTunes'){
-                        this.itunesDir = mediaFileSystem;
-                        iTunesMFS = this.getXMLFile(mediaFileSystem);
-                    }
-                }.bind(this)
-            );
-            return iTunesMFS;
+            return this.getITunesMediaFileSystem(mediaFileSystems);
+        }.bind(this)
+    ).then(
+        function(iTunesFileSystem){
+            this.itunesFS = iTunesFileSystem;
+            return this.getXMLFile(this.itunesFS);
         }.bind(this)
     ).then(
         function(xmlFile){
@@ -89,7 +54,6 @@ Library.prototype.parse = function(){
     ).then(
         function(songs){
             var json = JSON.parse(songs);
-            console.log('songs', json);  
         },
         function(e){
             console.error('Library parse error:', e);
@@ -97,12 +61,35 @@ Library.prototype.parse = function(){
     )
 }
 
-Library.prototype.getLibrary = function(){
+// get the songs json 
+// object from filesystem
+Library.prototype.getSongs = function(){
     return this.getFileSystem().then(
         function(fs){
             return this.getSongsFile(fs, false, true);
         }.bind(this)
     );
+}
+
+// get the itunes media file system
+Library.prototype.getItunesFS = function(){
+    var deferred = new $.Deferred();
+    if(this.itunesFS !== null){
+        deferred.resolve(this.itunesFS);
+    }
+    else{
+        this.getMediaFileSystems().then(
+            function(mediaFileSystems){
+                return this.getITunesMediaFileSystem(mediaFileSystems);
+            }.bind(this)
+        ).then(
+            function(iTunesFileSystem){
+                this.itunesFS = iTunesFileSystem;
+                deferred.resolve(this.itunesFS);
+            }.bind(this)
+        );
+    }
+    return deferred.promise();
 }
 
 Library.prototype.getMediaFileSystems = function(){
@@ -111,6 +98,19 @@ Library.prototype.getMediaFileSystems = function(){
         null,
         function(mediaFileSystems){
             deferred.resolve(mediaFileSystems);
+        }
+    );
+    return deferred.promise();
+}
+
+Library.prototype.getITunesMediaFileSystem = function(mediaFileSystems){
+    var deferred = new $.Deferred();
+    mediaFileSystems.forEach(
+        function(mediaFileSystem) {
+            var mData = chrome.mediaGalleries.getMediaFileSystemMetadata(mediaFileSystem);
+            if(mData.name === 'iTunes'){
+                deferred.resolve(mediaFileSystem);               
+            }
         }
     );
     return deferred.promise();
@@ -227,7 +227,7 @@ Library.prototype.fixSongs = function(list){
 
 Library.prototype.checkFileUrl = function(song){
     var deferred = new $.Deferred();
-    this.itunesDir.root.getFile(
+    this.itunesFS.root.getFile(
         song.url,
         {
             'create': false
@@ -236,7 +236,6 @@ Library.prototype.checkFileUrl = function(song){
             deferred.resolve(song);
         },
         function(e){
-            this.errorCount++;
             deferred.resolve(null);
         }.bind(this)
     );
@@ -298,97 +297,11 @@ Library.prototype.writeSongsFile = function(fileEntry, songList){
     return deferred.promise();
 }
 
-/*
-Library.prototype.onMediaFileSystems = function(mediaFileSystems){
-    mediaFileSystems.forEach(function(item, indx, arr) {
-         var mData = chrome.mediaGalleries.getMediaFileSystemMetadata(item);
-         if(mData.name === 'iTunes'){
-             this.readDir(item);
-         }
-    }.bind(this));
-}
-
-Library.prototype.readDir = function(fs) {
-    console.log('readDir');
-    var promise = $.Deferred();
-    var dirReader = fs.root.createReader();
-    var readEntries = function() {
-        dirReader.readEntries (function(results) {
-            console.log(results);
-            results.forEach(function(item, index){
-                if(item.name === "iTunes Music Library.xml"){
-                    this.readFile(item);
-                }
-                if(item.name === "iTunes Media"){
-                    this.itunesDir = item;
-                    promise.resolve(this.itunesDir);
-                }
-            }.bind(this))
-        }.bind(this), null);
-    }.bind(this);
-    readEntries(); // Start reading dirs.
-    return promise;
-}
-
-Library.prototype.readFile = function(fileEntry){
-    fileEntry.file(function(file) {
-        var reader = new FileReader();
-        reader.onloadend = function(e) {
-            this.parseXML(e.target.result);
-        }.bind(this);
-        reader.readAsText(file);
-    }.bind(this), null);
-}
-
-Library.prototype.parseXML = function(str){
-    this.songs = itunesParser.parse(
-        str,
-        {
-            'Track ID': 'id',
-            'Artist': 'artist',
-            'Album': 'album',
-            'Genre': 'genre',
-            'Name': 'title',
-            'Location': 'url'
-        }
-    );
-    this.fixSongs(this.songs).then(
-        function(songs){
-            this.songs = songs;
-            console.log('Library parsed:', this.songs.length);
-        }.bind(this),
-        function(){
-            console.log('fixSongs error');
-        }.bind(this)
-    );
-}
-
-
-
-Library.prototype.checkFileUrl = function(song){
-    var promise = $.Deferred();
-    this.itunesDir.root.getFile(
-        song.url,
-        {
-            'create': false
-        },
-        function(fileEntry) {
-            promise.resolve(song);
-        },
-        function(e){
-            this.errorCount++;
-            promise.resolve(null);
-        }.bind(this)
-    );
-    return promise;
-}
-*/
-
 Library.prototype.getFile = function(url){
     var promise = $.Deferred();
-    this.getItunesDir().then(
+    this.getItunesFS().then(
         function(dir){
-            dir.filesystem.root.getFile(
+            dir.root.getFile(
                 url,
                 {
                     'create': false
