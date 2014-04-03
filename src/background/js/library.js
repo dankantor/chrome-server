@@ -92,6 +92,7 @@ Library.prototype.getItunesFS = function(){
     return deferred.promise();
 }
 
+// get all media file systems
 Library.prototype.getMediaFileSystems = function(){
     var deferred = new $.Deferred();
     chrome.mediaGalleries.getMediaFileSystems(
@@ -103,6 +104,8 @@ Library.prototype.getMediaFileSystems = function(){
     return deferred.promise();
 }
 
+// loop through all media file systems
+// return itunes media file system
 Library.prototype.getITunesMediaFileSystem = function(mediaFileSystems){
     var deferred = new $.Deferred();
     mediaFileSystems.forEach(
@@ -116,7 +119,8 @@ Library.prototype.getITunesMediaFileSystem = function(mediaFileSystems){
     return deferred.promise();
 }
 
-
+// get iTunes Music Library.xml file
+// from the iTunes media file system
 Library.prototype.getXMLFile = function(fs) {
     var deferred = new $.Deferred();
     var dirReader = fs.root.createReader();
@@ -138,6 +142,7 @@ Library.prototype.getXMLFile = function(fs) {
     return deferred.promise();
 }
 
+// read a file and return text
 Library.prototype.readFile = function(fileEntry){
     var deferred = new $.Deferred();
     fileEntry.file(
@@ -153,6 +158,8 @@ Library.prototype.readFile = function(fileEntry){
     return deferred.promise();
 }
 
+// parse iTunes Music Library.xml
+// return songs object 
 Library.prototype.parseXMLFile = function(xmlStr){
     return itunesParser.parse(
         xmlStr,
@@ -167,6 +174,9 @@ Library.prototype.parseXMLFile = function(xmlStr){
     );
 }
 
+// loop through songs 
+// fix metadata
+// remove bad songs (videos, iCloud, etc)
 Library.prototype.fixSongs = function(list){
     var deferred = new $.Deferred();
     var songs = [];
@@ -225,6 +235,9 @@ Library.prototype.fixSongs = function(list){
     return deferred.promise();
 }
 
+// make sure the url we get from
+// the iTunes xml file matches
+// a file we can get from iTunes file system
 Library.prototype.checkFileUrl = function(song){
     var deferred = new $.Deferred();
     this.itunesFS.root.getFile(
@@ -242,6 +255,7 @@ Library.prototype.checkFileUrl = function(song){
     return deferred.promise();
 }
 
+// get sandboxed file system
 Library.prototype.getFileSystem = function(){
     var deferred = new $.Deferred();
     var requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
@@ -258,6 +272,9 @@ Library.prototype.getFileSystem = function(){
     return deferred.promise();
 }
 
+// get access to songs.txt
+// in sandboxed file system
+// reading or writing
 Library.prototype.getSongsFile = function(fs, create, exclusive){
     var deferred = new $.Deferred();
     fs.root.getFile(
@@ -276,6 +293,8 @@ Library.prototype.getSongsFile = function(fs, create, exclusive){
     return deferred.promise();
 }
 
+// write songs object
+// as json to songs.txt file
 Library.prototype.writeSongsFile = function(fileEntry, songList){
     var deferred = new $.Deferred();
     fileEntry.createWriter(
@@ -297,6 +316,8 @@ Library.prototype.writeSongsFile = function(fileEntry, songList){
     return deferred.promise();
 }
 
+// get a song file
+// from itunes file system
 Library.prototype.getFile = function(url){
     var promise = $.Deferred();
     this.getItunesFS().then(
