@@ -152,7 +152,7 @@ Server.prototype.sendError = function(socketId){
 Server.prototype.sendFile = function(socketId, file, keepAlive) {
     var contentType = (file.type === "") ? "text/plain" : file.type;
     var contentLength = file.size;
-    var header = this.stringToUint8Array("HTTP/1.0 200 OK\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
+    var header = this.stringToUint8Array("HTTP/1.0 200 OK\nAccess-Control-Allow-Origin:*\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
     var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
     var view = new Uint8Array(outputBuffer)
     view.set(header, 0);
@@ -211,7 +211,7 @@ Server.prototype.writeErrorResponse = function(socketId, errorCode, keepAlive) {
     var file = { size: 0 };
     var contentType = "text/plain"; //(file.type === "") ? "text/plain" : file.type;
     var contentLength = file.size;
-    var header = this.stringToUint8Array("HTTP/1.0 " + errorCode + " Not Found\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
+    var header = this.stringToUint8Array("HTTP/1.0 " + errorCode + " Not Found\nAccess-Control-Allow-Origin:*\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
     var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
     var view = new Uint8Array(outputBuffer)
     view.set(header, 0);

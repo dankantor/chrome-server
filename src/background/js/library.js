@@ -185,7 +185,7 @@ Library.prototype.fixSongs = function(list){
     _.each(
         list,
         function(song){
-            if(song.kind.indexOf('audio') !== -1){
+            if(song.kind && song.kind.indexOf('audio') !== -1){
                 delete song.kind;
                 if(song.artist){
                     song.artist = song.artist.replace(/&amp;/g, "&");
