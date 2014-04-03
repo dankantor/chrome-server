@@ -6,9 +6,8 @@ var Server = require('./server.js'),
     Library = require('./library.js');
 
 function Main(){
-    console.log('Main');
     this.library = null;
-    this.server = null
+    this.server = null;
 };
 
 Main.prototype.startServer = function(){
@@ -27,10 +26,24 @@ Main.prototype.parseLibrary = function(){
 
 
 var main = new Main();
-main.startServer()
+main.startServer();
 
 
 chrome.runtime.onInstalled.addListener(function(){
+    var main = new Main();
+    main.startServer();
+    main.parseLibrary();
+});
+
+chrome.runtime.onStartup.addListener(function(){
+    var main = new Main();
+    main.startServer();
+    main.parseLibrary();
+});
+
+chrome.app.runtime.onRestarted.addListener(function(){
+    var main = new Main();
+    main.startServer();
     main.parseLibrary();
 });
 
