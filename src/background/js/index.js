@@ -57,10 +57,10 @@ chrome.app.runtime.onLaunched.addListener(
                 'id': 'server_options',
                 'bounds':
                     {
-                        'width': 350,
+                        'width': 400,
                         'height': 130
                     },
-                'minWidth': 350,
+                'minWidth': 400,
                 'minHeight': 130
             }
         );

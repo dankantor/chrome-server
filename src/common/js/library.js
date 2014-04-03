@@ -11,6 +11,7 @@ function Library(){
 // into an object
 // save object as json in filesystem
 Library.prototype.parse = function(){
+    var deferred = new $.Deferred();
     var songList = [];
     this.getMediaFileSystems().then(
         function(mediaFileSystems){
@@ -48,16 +49,19 @@ Library.prototype.parse = function(){
         }.bind(this)
     ).then(
         function(fileEntry){
-            return this.readFile(fileEntry);
+            return this.writeLastScan();
         }.bind(this)
     ).then(
-        function(songs){
-            var json = JSON.parse(songs);
+        function(now){
+            console.log('Library scan done:', now);
+            deferred.resolve(now);
         },
         function(e){
             console.error('Library parse error:', e);
+            deferred.reject(e);
         }
-    )
+    );
+    return deferred.promise();
 }
 
 // get the songs json 
@@ -317,6 +321,39 @@ Library.prototype.writeSongsFile = function(fileEntry, songList){
         function(e){
             deferred.reject(e);
         }  
+    );
+    return deferred.promise();
+}
+
+// write now date to storage
+// to keep track of last scan
+Library.prototype.writeLastScan = function(){
+    var deferred = new $.Deferred();
+    var now = new Date().getTime();
+    chrome.storage.local.set(
+        {
+            'lastScan': now
+        },
+        function(){
+            deferred.resolve(now);
+        }
+    );
+    return deferred.promise();
+}
+
+// get last scan date from storage
+Library.prototype.getLastScan = function(){
+    var deferred = new $.Deferred();
+    chrome.storage.local.get(
+        'lastScan',
+        function(obj){
+            if(obj.lastScan){
+                deferred.resolve(obj.lastScan);
+            }
+            else{
+                deferred.resolve(-1);
+            }
+        }
     );
     return deferred.promise();
 }
