@@ -4,7 +4,6 @@ var parseUrl = require('url'),
     Library = require('./library.js');
 
 function Server(opts){
-    this.port = 9800;
     this.library = null;
 };
 
@@ -33,20 +32,25 @@ Server.prototype.createSocket = function(){
 }
 
 Server.prototype.onSocketCreate = function(createInfo){
-    this.listen(createInfo.socketId, 'create');
+    this.listen(createInfo.socketId);
 }
 
-Server.prototype.listen = function(socketId, type){
-    chrome.sockets.tcpServer.listen(
-        socketId,
-        '0.0.0.0',
-        this.port,
-        null,
-        this.onSocketListen.bind(this, type)
+Server.prototype.listen = function(socketId){
+    this.getPort().then(
+        function(port){
+            console.log('Server listen:', port);
+            chrome.sockets.tcpServer.listen(
+                socketId,
+                '0.0.0.0',
+                port,
+                null,
+                this.onSocketListen.bind(this)
+            );
+        }.bind(this)
     );
 }
 
-Server.prototype.onSocketListen = function(type, result){
+Server.prototype.onSocketListen = function(result){
     this.addAcceptListeners();
 }
 
@@ -244,6 +248,98 @@ Server.prototype.stringToUint8Array = function(string) {
     }
     return view;
 };
+
+Server.prototype.getPort = function(){
+    var deferred = new $.Deferred();
+    chrome.storage.local.get(
+        'port',
+        function(obj){
+            if(obj.port){
+                deferred.resolve(obj.port);
+            }
+            else{
+                deferred.resolve(9800);
+            }
+        }.bind(this)
+    );
+    return deferred.promise();
+}
+
+Server.prototype.setPort = function(port){
+    var deferred = new $.Deferred();
+    chrome.storage.local.set(
+        {
+            'port': port
+        },
+        function(){
+            deferred.resolve(port);
+        }
+    );
+    return deferred.promise();
+}
+
+Server.prototype.changePort = function(newPort){
+    var deferred = new $.Deferred();
+    var newPortN = parseInt(newPort);
+    var oldPort;
+    this.getPort().then(
+        function(port){
+            oldPort = port;
+            if(_.isNaN(newPortN) === false){
+                if(oldPort !== newPortN){
+                    return this.closeAll();
+                }
+            }
+            return new $.Deferred().reject();
+        }.bind(this)
+    ).then(
+        function(){
+            return this.setPort(newPortN);
+        }.bind(this)
+    ).then(
+        function(port){
+            this.start();
+            deferred.resolve(port);
+        }.bind(this),
+        function(e){
+            console.log('error', oldPort);
+            deferred.resolve(oldPort);
+        }
+    );
+    return deferred.promise();
+}
+
+Server.prototype.closeAll = function(){
+    var deferred = new $.Deferred();
+    chrome.sockets.tcpServer.getSockets(
+        function(socketInfos){
+            var closes = [];
+            _.each(
+                socketInfos,
+                function(socketInfo){
+                    closes.push(this.close(socketInfo.socketId));
+                }.bind(this)
+            );
+            return $.when.apply($, closes).then(
+                function(){
+                    deferred.resolve();
+                }
+            );
+        }.bind(this)
+    );
+    return deferred.promise();
+}
+
+Server.prototype.close = function(socketId){
+    var deferred = new $.Deferred();
+    chrome.sockets.tcpServer.close(
+        socketId,
+        function(){
+            deferred.resolve(socketId);
+        }
+    );
+    return deferred.promise();
+}
 
 module.exports = Server;
 

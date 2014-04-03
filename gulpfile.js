@@ -117,7 +117,9 @@ gulp.task('build',
 gulp.task('watch', function () {
     gulp.watch('src/background/js/**', ['browserify-background']);
     gulp.watch('src/options/js/**', ['browserify-options']);
-    gulp.watch('src/options/templates/**', ['browserify']);
+    gulp.watch('src/options/templates/**', ['browserify-options']);
+    gulp.watch('src/common/js/**', ['browserify-background']);
+    gulp.watch('src/common/js/**', ['browserify-options']);
     gulp.watch('src/options/less/**', ['less']);
     gulp.watch('src/background/images/**', ['imagemin-background']);
     gulp.watch('src/options/images/**', ['imagemin-options']);

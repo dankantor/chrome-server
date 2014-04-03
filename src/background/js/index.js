@@ -1,9 +1,11 @@
+(function(){
+
 window.$ = require('jquery');
 window._ = require('./../../../node_modules/backbone/node_modules/underscore/underscore.js');
 
 
-var Server = require('./server.js'),
-    Library = require('./library.js');
+var Server = require('./../../common/js/server.js'),
+    Library = require('./../../common/js/library.js');
 
 function Main(){
     this.library = null;
@@ -47,5 +49,23 @@ chrome.app.runtime.onRestarted.addListener(function(){
     main.parseLibrary();
 });
 
+chrome.app.runtime.onLaunched.addListener(
+    function(){
+        chrome.app.window.create(
+            'options/options.html', 
+            {
+                'id': 'server_options',
+                'bounds':
+                    {
+                        'width': 350,
+                        'height': 130
+                    },
+                'minWidth': 350,
+                'minHeight': 130
+            }
+        );
+    }
+);
 
-// on restart start server
+}()); // end wrapper
+
