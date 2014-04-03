@@ -13,8 +13,8 @@ var notify = require("gulp-notify");
 // browserify js and template files
 // only need index file
 // requires get pulled in automatically
-gulp.task('browserify', function() {
-    gulp.src('./src/js/index.js')
+gulp.task('browserify-background', function() {
+    gulp.src('./src/background/js/index.js')
         .pipe(browserify
             ({
                 'insertGlobals': true,
@@ -27,7 +27,27 @@ gulp.task('browserify', function() {
                 }
             ))
         )
-        .pipe(gulp.dest('./build/js'))
+        .pipe(gulp.dest('./build/background/js'))
+});
+
+// browserify js and template files
+// only need index file
+// requires get pulled in automatically
+gulp.task('browserify-options', function() {
+    gulp.src('./src/options/js/index.js')
+        .pipe(browserify
+            ({
+                'insertGlobals': true,
+                'debug': gutil.env.production,
+                'transform': ['hbsfy']
+            })
+            .on('error', notify.onError(
+                function (error) {
+                    return error.message;
+                }
+            ))
+        )
+        .pipe(gulp.dest('./build/options/js'))
 });
 
 // convert less files to css
@@ -35,38 +55,37 @@ gulp.task('browserify', function() {
 // imports get pulled in automatically
 gulp.task('less', function () {
   gulp
-    .src('./src/less/index.less')
+    .src('./src/options/less/index.less')
     .pipe(less({
-      paths: ['src/less']
+      paths: ['src/options/less']
     }))
-    .pipe(gulp.dest('./build/css'));
+    .pipe(gulp.dest('./build/options/css'));
 });
 
 // minify images
 // put them in build folder
-gulp.task('imagemin', function () {
-    gulp.src('src/images/**')
+gulp.task('imagemin-background', function () {
+    gulp.src('src/background/images/**')
         .pipe(imagemin())
-        .pipe(gulp.dest('./build/images'));
+        .pipe(gulp.dest('./build/background/images'));
+});
+
+// minify images
+// put them in build folder
+gulp.task('imagemin-options', function () {
+    gulp.src('src/options/images/**')
+        .pipe(imagemin())
+        .pipe(gulp.dest('./build/options/images'));
 }); 
 
 // minify html
 // put it in build folder
 gulp.task('htmlmin', function() {
-  gulp.src('./src/*.html')
+  gulp.src('./src/options/*.html')
     .pipe(htmlmin({collapseWhitespace: true}))
-    .pipe(gulp.dest('./build'))
+    .pipe(gulp.dest('./build/options/'))
 });
 
-// copy fonts to build dir
-gulp.task('fontcopy', function () {
-    gulp.src(
-        './src/fonts/**/', 
-        {base: './src/fonts'}
-    )
-    .pipe(gulp.dest('./build/fonts/')); 
-    
-});
 
 // copy chrome files
 gulp.task('chromecopy', function () {
@@ -78,25 +97,16 @@ gulp.task('chromecopy', function () {
     
 });
 
-// deploy to S3 bucket
-gulp.task('deploy', function () {
-    var aws = JSON.parse(fs.readFileSync('./aws.json'));
-    var publisher = awspublish.create(aws);
-    var headers = { 'Cache-Control': 'max-age=315360000, no-transform, public' };
-    var js = gulp.src('./build/**')
-        .pipe(publisher.publish(headers))
-        .pipe(awspublish.reporter());
-});
-
 
 // build all one time
 gulp.task('build',
     [
-        'browserify',
+        'browserify-background',
+        'browserify-options',
         'less',
-        'imagemin',
+        'imagemin-background',
+        'imagemin-options',
         'htmlmin',
-        'fontcopy',
         'chromecopy'
     ]
 );
@@ -105,12 +115,14 @@ gulp.task('build',
 // js & templates -> browserify
 // less -> less
 gulp.task('watch', function () {
-    gulp.watch('src/js/**', ['browserify']);
-    gulp.watch('src/templates/**', ['browserify']);
-    gulp.watch('src/less/**', ['less']);
-    gulp.watch('src/images/**', ['imagemin']);
-    gulp.watch('src/*.html', ['htmlmin']);
-    gulp.watch('src/fonts/**', ['fontcopy']);
+    gulp.watch('src/background/js/**', ['browserify-background']);
+    gulp.watch('src/options/js/**', ['browserify-options']);
+    gulp.watch('src/options/templates/**', ['browserify']);
+    gulp.watch('src/options/less/**', ['less']);
+    gulp.watch('src/background/images/**', ['imagemin-background']);
+    gulp.watch('src/options/images/**', ['imagemin-options']);
+    gulp.watch('src/options/*.html', ['htmlmin']);
+    gulp.watch('src/options/fonts/**', ['fontcopy']);
     gulp.watch('chrome/**', ['chromecopy']);
 });
 
